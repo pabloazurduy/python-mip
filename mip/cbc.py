@@ -79,11 +79,18 @@ try:
                 libfile = os.path.join(pathlib, "libCbcSolver-0.dll")
             else:
                 raise Exception("Win32 platform not supported.")
-        elif platform.lower().startswith(
-            "darwin"
-        ) or platform.lower().startswith("macos"):
+        elif platform.lower().startswith("darwin") or platform.lower().startswith("macos"):
             if os_is_64_bit:
-                libfile = os.path.join(pathlib, "cbc-c-darwin-x86-64.dylib")
+                pathlib = os.path.join(pathlib, "darwin")
+                if "LD_LIBRARY_PATH" not in os.environ:
+                    os.environ["LD_LIBRARY_PATH"] = pathlib
+                elif pathlib not in os.environ["LD_LIBRARY_PATH"]:
+                    os.environ["LD_LIBRARY_PATH"] = (
+                        pathlib + ":" + os.environ["LD_LIBRARY_PATH"]
+                    )
+                libfile = os.path.join(pathlib, "libCbcSolver.0.dylib")
+            else:
+                raise Exception("MacOS 32 bits platform not supported.")
         if not libfile:
             raise Exception("You operating system/platform is not supported")
     old_dir = os.getcwd()
