@@ -6,6 +6,7 @@ from sys import platform, maxsize
 from os.path import dirname, isfile
 import os
 import multiprocessing as multip
+import numbers
 from cffi import FFI
 from mip.model import xsum
 import mip
@@ -60,9 +61,9 @@ try:
     # (for debugging purposes, for example)
     if "PMIP_CBC_LIBRARY" in os.environ:
         libfile = os.environ["PMIP_CBC_LIBRARY"]
+        pathlib = dirname(libfile)
 
         if platform.lower().startswith("win"):
-            pathlib = dirname(libfile)
             if pathlib not in os.environ["PATH"]:
                 os.environ["PATH"] += ";" + pathlib
     else:
@@ -162,6 +163,8 @@ if has_cbc:
 
     const double *Cbc_getRowActivity(Cbc_Model *model);
 
+    const double *Cbc_getRowSlack(Cbc_Model *model);
+
     int Cbc_getColNz(Cbc_Model *model, int col);
 
     int *Cbc_getColIndices(Cbc_Model *model, int col);
@@ -214,6 +217,12 @@ if has_cbc:
     const double *Cbc_getColLower(Cbc_Model *model);
 
     const double *Cbc_getColUpper(Cbc_Model *model);
+
+    double Cbc_getColObj(Cbc_Model *model, int colIdx);
+
+    double Cbc_getColLB(Cbc_Model *model, int colIdx);
+
+    double Cbc_getColUB(Cbc_Model *model, int colIdx);
 
     void Cbc_setColLower(Cbc_Model *model, int index, double value);
 
@@ -582,13 +591,19 @@ class SolverCbc(Solver):
         self.__x = EmptyVarSol(model)
         self.__rc = EmptyVarSol(model)
         self.__pi = EmptyRowSol(model)
+        self.__slack = EmptyRowSol(model)
         self.__obj_val = None
+        self.__obj_bound = None
+        self.__num_solutions = 0
 
     def __clear_sol(self: "SolverCbc"):
         self.__x = EmptyVarSol(self.model)
         self.__rc = EmptyVarSol(self.model)
         self.__pi = EmptyRowSol(self.model)
+        self.__slack = EmptyRowSol(self.model)
         self.__obj_val = None
+        self.__obj_bound = None
+        self.__num_solutions = 0
 
     def add_var(
         self,
@@ -858,9 +873,13 @@ class SolverCbc(Solver):
                 self.__x = cbclib.Cbc_getColSolution(self._model)
                 self.__rc = cbclib.Cbc_getReducedCost(self._model)
                 self.__pi = cbclib.Cbc_getRowPrice(self._model)
+                self.__slack = cbclib.Cbc_getRowSlack(self._model)
                 self.__obj_val = (
                     cbclib.Cbc_getObjValue(self._model) + self._objconst
                 )
+                self.__obj_bound = self.__obj_val
+                self.__num_solutions = 1
+
                 return OptimizationStatus.OPTIMAL
             if res == 2:
                 return OptimizationStatus.UNBOUNDED
@@ -990,12 +1009,25 @@ class SolverCbc(Solver):
 
         if cbclib.Cbc_isProvenOptimal(self._model):
             self.__x = cbclib.Cbc_getColSolution(self._model)
+            self.__slack = cbclib.Cbc_getRowSlack(self._model)
             self.__obj_val = (
                 cbclib.Cbc_getObjValue(self._model) + self._objconst
             )
+            self.__obj_bound = self.__obj_val
+            self.__num_solutions = 1
+
             if self.model.num_int == 0:
                 self.__rc = cbclib.Cbc_getReducedCost(self._model)
                 self.__pi = cbclib.Cbc_getRowPrice(self._model)
+                self.__slack = cbclib.Cbc_getRowSlack(self._model)
+            else:
+                self.__obj_bound = (
+                    cbclib.Cbc_getBestPossibleObjValue(self._model)
+                    + self._objconst
+                )
+                self.__num_solutions = cbclib.Cbc_numberSavedSolutions(
+                    self._model
+                )
             return OptimizationStatus.OPTIMAL
 
         if cbclib.Cbc_isProvenInfeasible(self._model):
@@ -1005,11 +1037,21 @@ class SolverCbc(Solver):
             return OptimizationStatus.UNBOUNDED
 
         if cbclib.Cbc_getNumIntegers(self._model):
+            self.__obj_bound = (
+                cbclib.Cbc_getBestPossibleObjValue(self._model)
+                + self._objconst
+            )
+
             if cbclib.Cbc_bestSolution(self._model):
                 self.__x = cbclib.Cbc_getColSolution(self._model)
+                self.__slack = cbclib.Cbc_getRowSlack(self._model)
                 self.__obj_val = (
                     cbclib.Cbc_getObjValue(self._model) + self._objconst
                 )
+                self.__num_solutions = cbclib.Cbc_numberSavedSolutions(
+                    self._model
+                )
+
                 return OptimizationStatus.FEASIBLE
 
         return OptimizationStatus.NO_SOLUTION_FOUND
@@ -1060,7 +1102,7 @@ class SolverCbc(Solver):
         return self.__log
 
     def get_objective_bound(self) -> float:
-        return cbclib.Cbc_getBestPossibleObjValue(self._model) + self._objconst
+        return self.__obj_bound
 
     def var_get_x(self, var: Var) -> Optional[float]:
         # model status is *already checked* Var x property
@@ -1068,7 +1110,7 @@ class SolverCbc(Solver):
         return self.__x[var.idx]
 
     def get_num_solutions(self) -> int:
-        return cbclib.Cbc_numberSavedSolutions(self._model)
+        return self.__num_solutions
 
     def get_objective_value_i(self, i: int) -> float:
         return cbclib.Cbc_savedSolutionObj(self._model, i) + self._objconst
@@ -1083,24 +1125,14 @@ class SolverCbc(Solver):
         # (returns None if no solution available)
         return self.__rc[var.idx]
 
-    def var_get_lb(self, var: "Var") -> float:
-        lb = cbclib.Cbc_getColLower(self._model)
-        if lb == ffi.NULL:
-            raise ParameterNotAvailable(
-                "Error while getting lower bound of variables"
-            )
-        return float(lb[var.idx])
+    def var_get_lb(self, var: "Var") -> numbers.Real:
+        return cbclib.Cbc_getColLB(self._model, var.idx)
 
     def var_set_lb(self, var: "Var", value: float):
         cbclib.Cbc_setColLower(self._model, var.idx, value)
 
-    def var_get_ub(self, var: "Var") -> float:
-        ub = cbclib.Cbc_getColUpper(self._model)
-        if ub == ffi.NULL:
-            raise ParameterNotAvailable(
-                "Error while getting upper bound of variables"
-            )
-        return float(ub[var.idx])
+    def var_get_ub(self, var: "Var") -> numbers.Real:
+        return cbclib.Cbc_getColUB(self._model, var.idx)
 
     def var_set_ub(self, var: "Var", value: float):
         cbclib.Cbc_setColUpper(self._model, var.idx, value)
@@ -1122,13 +1154,8 @@ class SolverCbc(Solver):
     def constr_set_rhs(self, idx: int, rhs: float):
         cbclib.Cbc_setRowRHS(self._model, idx, rhs)
 
-    def var_get_obj(self, var: Var) -> float:
-        obj = cbclib.Cbc_getObjCoefficients(self._model)
-        if obj == ffi.NULL:
-            raise ParameterNotAvailable(
-                "Error getting objective function coefficients"
-            )
-        return obj[var.idx]
+    def var_get_obj(self, var: Var) -> numbers.Real:
+        return cbclib.Cbc_getColObj(self._model, var.idx)
 
     def var_get_var_type(self, var: "Var") -> str:
         isInt = cbclib.Cbc_isInteger(self._model, var.idx)
@@ -1144,19 +1171,18 @@ class SolverCbc(Solver):
 
     def var_get_column(self, var: "Var") -> Column:
         numnz = cbclib.Cbc_getColNz(self._model, var.idx)
+        if numnz == 0:
+            return Column()
 
         cidx = cbclib.Cbc_getColIndices(self._model, var.idx)
         if cidx == ffi.NULL:
             raise ParameterNotAvailable("Error getting column indices'")
         ccoef = cbclib.Cbc_getColCoeffs(self._model, var.idx)
 
-        col = Column()
-
-        for i in range(numnz):
-            col.constrs.append(Constr(self, cidx[i]))
-            col.coeffs.append(ccoef[i])
-
-        return col
+        return Column(
+            [Constr(self.model, cidx[i]) for i in range(numnz)],
+            [ccoef[i] for i in range(numnz)],
+        )
 
     def add_constr(self, lin_expr: LinExpr, name: str = ""):
         # collecting linear expression data
@@ -1366,31 +1392,7 @@ class SolverCbc(Solver):
         return self.__pi[constr.idx]
 
     def constr_get_slack(self, constr: Constr) -> Optional[float]:
-        if self.model.status not in [
-            OptimizationStatus.OPTIMAL,
-            OptimizationStatus.FEASIBLE,
-        ]:
-            return None
-        pac = cbclib.Cbc_getRowActivity(self._model)
-        if pac == ffi.NULL:
-            return None
-        rhs = float(cbclib.Cbc_getRowRHS(self._model, constr.idx))
-        activity = float(pac[constr.idx])
-
-        sense = (
-            cbclib.Cbc_getRowSense(self._model, constr.idx)
-            .decode("utf-8")
-            .upper()
-        )
-
-        if sense in "<L":
-            return rhs - activity
-        if sense in ">G":
-            return activity - rhs
-        if sense in "=E":
-            return abs(activity - rhs)
-
-        return None
+        return self.__slack[constr.idx]
 
 
 class ModelOsi(Model):
