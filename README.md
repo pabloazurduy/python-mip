@@ -1,5 +1,5 @@
 # Conflict Resolution Module
-An implementation of a `conflictFinder` module based on the publication of Olivier [1]
+An implementation of a `conflictFinder` module based on the publication of Olivier et al. [1]
 The main idea is to provide the python-mip library with a conflict dealing module
 
 ### TODO
