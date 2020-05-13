@@ -43,24 +43,30 @@ class ConflictFinder:
         # 1. create a model with all constraints but one 
         aux_model = model.copy()
         aux_model.objective = 1
-        crt_all = copy(aux_model.constrs)
 
         aux_model.emphasis = 1 # feasibility
         aux_model.preprocess = 1 # -1  automatic, 0  off, 1  on.
         logger.debug('starting deletion_filter algorithm')
         
-        for inc_crt in crt_all:
-            aux_model.constrs.remove([inc_crt]) # temporally remove inc_crt 
+        for inc_crt in model.constrs:
+            aux_model_inc_crt_idx = [crt.name for crt in aux_model.constrs].index(inc_crt.name)
+            aux_model_inc_crt = aux_model.constrs[aux_model_inc_crt_idx]
+            
+            aux_model.remove(aux_model_inc_crt) # temporally remove inc_crt  
+
             aux_model.optimize() 
             status = aux_model.status
             # 2. test feasibility, if feasible, return dropped constraint to the set 
             # 2.1 else removed it permanently 
+            logger.debug('status {}'.format(status))
             if status == OptimizationStatus.INFEASIBLE:
-                logger.debug('removing permanently {}'.format(inc_crt))
+                logger.debug('removing permanently {}'.format(inc_crt.name))
                 continue
-            elif status == OptimizationStatus.FEASIBLE:
-                aux_model.constrs.add([inc_crt])
+            elif status in [OptimizationStatus.FEASIBLE,OptimizationStatus.OPTIMAL] :
+                aux_model.add_constr(inc_crt.expr, name= inc_crt.name)
+
         iis = aux_model.constrs
+
         return iis  
 
 def build_infeasible_cont_model(num_constraints:int = 10, num_infeasible_sets:int = 20) -> Model:
@@ -75,7 +81,7 @@ def build_infeasible_cont_model(num_constraints:int = 10, num_infeasible_sets:in
     
     num_constraint_inf = int(num_infeasible_sets/num_constraints)
     for idx,rand_constraint in enumerate(np.linspace(-1000,-1,num_constraint_inf)):
-        crt = mdl.add_constr(var<=rand_constraint, name='lower_bound_{}'.format(idx))
+        crt = mdl.add_constr(var<=rand_constraint, name='upper_bound_{}'.format(idx))
         logger.debug('added {} to the model'.format(crt))
         
     mdl.emphasis = 1 # feasibility
@@ -99,5 +105,6 @@ if __name__ == "__main__":
     logger.debug(model.status)
 
     cf = ConflictFinder()
-    iss = cf.find_iis(model)
-    logger.debug(iis)
+    iis = cf.find_iis(model)
+    logger.debug([crt.name for crt in iis])
+
