@@ -13,4 +13,11 @@ if "GUROBI_HOME" in environ:
 
 @pytest.mark.parametrize("solver", SOLVERS)
 def test_conflict_refiner(solver: str):
+    # TODO
     pass
+
+# test feasible model 
+# test infeasible simple model 
+# test a mip
+# test a single IIS model in all methods 
+

@@ -4,8 +4,10 @@ The main idea is to provide the python-mip library with a conflict dealing modul
 
 ### TODO
 #### IIS algorithms 
-- [ ] Implement Deletion Filter Algorithm 
-- [ ] Implement Additive Algorithm 
+- [x] Implement Deletion Filter Algorithm (LP)
+- [x] Implement Additive Algorithm (LP)
+- [ ] Implement Deletion Filter Algorithm (MIP)
+- [ ] Implement Additive Algorithm (MIP)
 
 #### Relaxation module 
 - [ ] Implement a linear punishment relaxation algorithm (based on a hierarchy structure)

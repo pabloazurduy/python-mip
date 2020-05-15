@@ -2,7 +2,7 @@
 name = "mip-infeasibility"
 version = "0.1.0"
 description = ""
-authors = ["Pablo Azurduy <azurduy@uber.com>"]
+authors = ["Pablo Azurduy <pablo.azurduy@ug.uchile.cl>"]
 
 [tool.poetry.dependencies]
 python = "^3.8"
