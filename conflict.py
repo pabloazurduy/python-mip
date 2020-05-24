@@ -22,7 +22,9 @@ from mip.exceptions import (
 )
 import numpy as np
 
-logger = logging.getLogger(__name__)
+# logger = logging.getLogger(__name__)
+logger = logging.getLogger('conflict')
+
 class ConflictFinder:
 
     def __init__(self):
@@ -93,23 +95,29 @@ class ConflictFinder:
         
         # algorithm start 
         all_constraints = model.constrs
-        testing_crt_set = ConstrList(model=aux_model_testing)
-        iis = ConstrList(model=aux_model_iis)
+        testing_crt_set = ConstrList(model=aux_model_testing) #T
+        iis = ConstrList(model=aux_model_iis) #I
+        
+        while True:
+            for crt in all_constraints:
+                testing_crt_set.add(crt.expr, name=crt.name)
+                aux_model_testing.constrs = testing_crt_set
+                aux_model_testing.optimize()
 
-        for crt in all_constraints:
-            testing_crt_set.add(crt.expr, name=crt.name)
-            aux_model_testing.constrs = testing_crt_set
-            aux_model_testing.optimize()
-            if aux_model_testing.status ==  OptimizationStatus.INFEASIBLE:
-                iis.add(crt.expr, name=crt.name)
-                aux_model_iis.constrs = iis
-                aux_model_iis.optimize()
-                if aux_model_iis.status == OptimizationStatus.INFEASIBLE:
-                    break 
-                elif aux_model_iis.status in [OptimizationStatus.FEASIBLE,OptimizationStatus.OPTIMAL] :
-                    testing_crt_set = iis
-                    continue     
-        return iis 
+                if aux_model_testing.status ==  OptimizationStatus.INFEASIBLE:
+                    iis.add(crt.expr, name=crt.name)
+                    aux_model_iis.constrs = iis
+                    aux_model_iis.optimize()
+
+                    if aux_model_iis.status == OptimizationStatus.INFEASIBLE:
+                        return iis  
+                    elif aux_model_iis.status in [OptimizationStatus.FEASIBLE,OptimizationStatus.OPTIMAL] :
+                        testing_crt_set = ConstrList(model=aux_model_testing)
+                        for crt in iis: # basically this loop is for set T=I // aux_model_iis =  iis.copy() 
+                            testing_crt_set.add(crt.expr, name=crt.name)
+                        break     
+            
+        
 
 def build_infeasible_cont_model(num_constraints:int = 10, num_infeasible_sets:int = 20) -> Model:
     # build an infeasible model, based on many redundant constraints 
