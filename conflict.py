@@ -22,8 +22,7 @@ class ConflictFinder:
         if method == "deletion-filter":
             return self.deletion_filter(model)
         if method == "additive-algorithm":
-            return self.additive_algorithm(model)
-            
+            return self.additive_algorithm(model)        
             
     def deletion_filter(self, 
                         model:"mip.Model")-> mip.ConstrList:
@@ -37,8 +36,7 @@ class ConflictFinder:
         logger.debug('starting deletion_filter algorithm')
         
         for inc_crt in model.constrs:
-            aux_model_inc_crt_idx = [crt.name for crt in aux_model.constrs].index(inc_crt.name)
-            aux_model_inc_crt = aux_model.constrs[aux_model_inc_crt_idx]
+            aux_model_inc_crt = aux_model.constr_by_name(inc_crt.name) # find constraint by name 
             aux_model.remove(aux_model_inc_crt) # temporally remove inc_crt  
             
             aux_model.optimize() 
@@ -167,6 +165,14 @@ class ConflictFinder:
         # TODO
         raise NotImplementedError
     
+class ConflictResolver():
+    def __init__(self):
+        pass
+
+    #def 
+
+
+
 
 def build_infeasible_cont_model(num_constraints:int = 10, num_infeasible_sets:int = 20) -> mip.Model:
     # build an infeasible model, based on many redundant constraints 
