@@ -1,6 +1,10 @@
 import logging
+import sys
 from copy import copy, deepcopy
-from typing import List, Tuple, Optional, Union, Dict, Any
+from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple, Union
+import random
+
 import mip
 import numpy as np
 
@@ -17,7 +21,7 @@ class ConflictFinder:
                  method: str = "deletion-filter",) -> mip.ConstrList:
                 
         # check if infeasible 
-        assert model.status == mip.OptimizationStatus.INFEASIBLE, "model is not infeasible"
+        assert model.status == mip.OptimizationStatus.INFEASIBLE, 'model is not infeasible'
         # assert ,is not because time limit 
         if method == "deletion-filter":
             return self.deletion_filter(model)
@@ -100,6 +104,7 @@ class ConflictFinder:
     def deletion_filter_milp_ir_lc_bd(self,
                                       model:"mip.Model")-> mip.ConstrList:    
         
+        raise NotImplementedError('WIP')
         # major constraint sets definition  
         t_aux_model = mip.Model(name='t_auxiliary_model')
         iis_aux_model = mip.Model(name='t_auxiliary_model')
@@ -158,35 +163,113 @@ class ConflictFinder:
         # STEP 2 filter lc constraints 
         # STEP 3 filter BD constraints 
         # return IS o IIS
-        raise NotImplementedError 
+         
 
     def deletion_filter_milp_lc_ir_bd(self,
                                       model:"mip.Model")-> mip.ConstrList:    
         # TODO
         raise NotImplementedError
-    
+
+class ConstraintPriority(Enum):
+    # constraints levels
+    VERY_LOW_PRIORITY = 7
+    LOW_PRIORITY = 6
+    NORMAL_PRIORITY = 5
+    MID_PRIORITY = 4
+    HIGH_PRIORITY = 3
+    VERY_HIGH_PRIORITY = 2
+    MANDATORY = 1 
+
 class ConflictResolver():
+    
+    # mapper for constraint naming (while the attribute 'crt_importance' not in the mip.Constraint class)
+    PRIORITY_MAPPER = {
+        '_l7':ConstraintPriority.VERY_LOW_PRIORITY,
+        '_l6':ConstraintPriority.LOW_PRIORITY,
+        '_l5':ConstraintPriority.NORMAL_PRIORITY,
+        '_l4':ConstraintPriority.MID_PRIORITY,
+        '_l3':ConstraintPriority.HIGH_PRIORITY,
+        '_l2':ConstraintPriority.VERY_HIGH_PRIORITY,
+        '_l1':ConstraintPriority.MANDATORY
+    }
+
     def __init__(self):
         pass
+    
+    @classmethod
+    def hierarchy_relaxer(cls, 
+                          model:mip.Model, 
+                          relaxer_objective:str = 'min_abs_slack_val', 
+                          default_priority:ConstraintPriority = ConstraintPriority.MANDATORY ) -> mip.Model:
+    
+        # check if infeasible 
+        assert model.status == mip.OptimizationStatus.INFEASIBLE, 'model is not infeasible'
+        
+        # 0 map priorities 
+        crt_priority_dict = cls.map_constraint_priorities(model, default_priority = default_priority)
 
-    #def 
+        cf = ConflictFinder()
+        while True:
+            # 1. find iis 
+            iis = cf.find_iis(model, "additive-algorithm")
+            
+            iis_priority_mapping = { crt.name :crt_priority_dict[crt.name] for crt in iis}
+            # check if "relaxable" model mapping 
+            if set(iis_priority_mapping.values()) == set([ConstraintPriority.MANDATORY]):
+                raise Exception('Infeasible model, is not possible to relax MANDATORY constraints')
+            
+            # 2. relax iss 
+            slack_dict = cls.relax_iss(iis, 
+            iis_priority_mapping, 
+            relaxer_objective = relaxer_objective)
+
+
+        # add the slack variables to the original problem 
+        # goto 1 
+    
+    @classmethod
+    def map_constraint_priorities(cls, model:mip.Model, mapper:dict = PRIORITY_MAPPER, default_priority:ConstraintPriority = ConstraintPriority.MANDATORY ) -> dict:
+        
+        crt_importance_dict = {} # dict with name
+        crt_name_list = [crt.name for crt in model.constrs]
+        
+        #check unique names 
+        assert len(crt_name_list) == len(set(crt_name_list)), 'names in constraints must be unique to use conflict refiner, please rename them'
+
+        # TODO: this could be optimized
+        for crt_name in crt_name_list:
+            for key in mapper.keys():
+                if key in crt_name:
+                    crt_importance_dict[crt_name] = mapper[key]
+                    break
+            
+        non_defined_crt = [crt_name for crt_name in crt_name_list if crt_name not in  crt_importance_dict.keys()]
+        for crt_name in non_defined_crt:
+            crt_importance_dict[crt_name] = default_priority
+
+        return crt_importance_dict
+
+    @classmethod 
+    def relax_iss(cls, iis:mip.ConstrList, iis_priority_mapping:dict, relaxer_objective:str = 'min_abs_slack_val' ) -> dict:
+        raise NotImplementedError
 
 
 
 
-def build_infeasible_cont_model(num_constraints:int = 10, num_infeasible_sets:int = 20) -> mip.Model:
+def build_infeasible_cont_model(num_constraints:int = 10, 
+                                num_infeasible_sets:int = 20) -> mip.Model:
     # build an infeasible model, based on many redundant constraints 
     mdl = mip.Model(name='infeasible_model_continuous')
     var = mdl.add_var(name='var', var_type=mip.CONTINUOUS, lb=-1000, ub=1000)
     
     
     for idx,rand_constraint in enumerate(np.linspace(1,1000,num_constraints)):
-        crt = mdl.add_constr(var>=rand_constraint, name='lower_bound_{}'.format(idx))
+        crt = mdl.add_constr(var>=rand_constraint, name='lower_bound_{0}_l{1}'.format(idx,random.randint(2,7) ))
         logger.debug('added {} to the model'.format(crt))
     
     num_constraint_inf = int(num_infeasible_sets/num_constraints)
     for idx,rand_constraint in enumerate(np.linspace(-1000,-1,num_constraint_inf)):
-        crt = mdl.add_constr(var<=rand_constraint, name='upper_bound_{}'.format(idx))
+        crt = mdl.add_constr(var<=rand_constraint, name='upper_bound_{0}_l{1}'.format(idx, random.randint(2,7)))
         logger.debug('added {} to the model'.format(crt))
         
     mdl.emphasis = 1 # feasibility
@@ -195,7 +278,6 @@ def build_infeasible_cont_model(num_constraints:int = 10, num_infeasible_sets:in
     return mdl
 
 
-import sys
 if __name__ == "__main__":
     
     # logger config
@@ -213,3 +295,5 @@ if __name__ == "__main__":
     iis = cf.find_iis(model, "additive-algorithm")
     logger.debug([crt.name for crt in iis])
 
+    cr = ConflictResolver()
+    cr.hierarchy_relaxer(model)
