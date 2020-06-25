@@ -2,6 +2,7 @@ import logging
 import sys
 from copy import copy, deepcopy
 from enum import Enum
+from functools import total_ordering
 from typing import Any, Dict, List, Optional, Tuple, Union
 import random
 
@@ -65,10 +66,10 @@ class ConflictFinder:
         # Create some aux models to test feasibility of the set of constraints  
         aux_model_testing =  mip.Model()
         for var in model.vars:
-            aux_model_testing.add_var(name=var.name, 
+            aux_model_testing.add_var(name = var.name, 
                                       lb = var.lb,
                                       ub = var.ub, 
-                                      var_type=var.var_type,
+                                      var_type = var.var_type,
                                       # obj= var.obj, 
                                       # column=var.column   #!! libc++abi.dylib: terminating with uncaught exception of type CoinError
                                       )
@@ -172,25 +173,30 @@ class ConflictFinder:
 
 class ConstraintPriority(Enum):
     # constraints levels
-    VERY_LOW_PRIORITY = 7
-    LOW_PRIORITY = 6
-    NORMAL_PRIORITY = 5
+    VERY_LOW_PRIORITY = 1
+    LOW_PRIORITY = 2
+    NORMAL_PRIORITY = 3
     MID_PRIORITY = 4
-    HIGH_PRIORITY = 3
-    VERY_HIGH_PRIORITY = 2
-    MANDATORY = 1 
+    HIGH_PRIORITY = 5
+    VERY_HIGH_PRIORITY = 6
+    MANDATORY = 7
+    
+    def __lt__(self, other):
+        if self.__class__ is other.__class__:
+            return self.value < other.value
+        return NotImplemented
 
 class ConflictResolver():
     
     # mapper for constraint naming (while the attribute 'crt_importance' not in the mip.Constraint class)
     PRIORITY_MAPPER = {
-        '_l7':ConstraintPriority.VERY_LOW_PRIORITY,
-        '_l6':ConstraintPriority.LOW_PRIORITY,
-        '_l5':ConstraintPriority.NORMAL_PRIORITY,
+        '_l1':ConstraintPriority.VERY_LOW_PRIORITY,
+        '_l2':ConstraintPriority.LOW_PRIORITY,
+        '_l3':ConstraintPriority.NORMAL_PRIORITY,
         '_l4':ConstraintPriority.MID_PRIORITY,
-        '_l3':ConstraintPriority.HIGH_PRIORITY,
-        '_l2':ConstraintPriority.VERY_HIGH_PRIORITY,
-        '_l1':ConstraintPriority.MANDATORY
+        '_l5':ConstraintPriority.HIGH_PRIORITY,
+        '_l6':ConstraintPriority.VERY_HIGH_PRIORITY,
+        '_l7':ConstraintPriority.MANDATORY
     }
 
     def __init__(self):
@@ -219,13 +225,11 @@ class ConflictResolver():
                 raise Exception('Infeasible model, is not possible to relax MANDATORY constraints')
             
             # 2. relax iss 
-            slack_dict = cls.relax_iss(iis, 
-            iis_priority_mapping, 
-            relaxer_objective = relaxer_objective)
+            slack_dict = cls.relax_iss(iis, iis_priority_mapping, relaxer_objective = relaxer_objective)
 
 
-        # add the slack variables to the original problem 
-        # goto 1 
+            # add the slack variables to the original problem 
+            # goto 1 
     
     @classmethod
     def map_constraint_priorities(cls, model:mip.Model, mapper:dict = PRIORITY_MAPPER, default_priority:ConstraintPriority = ConstraintPriority.MANDATORY ) -> dict:
@@ -251,9 +255,31 @@ class ConflictResolver():
 
     @classmethod 
     def relax_iss(cls, iis:mip.ConstrList, iis_priority_mapping:dict, relaxer_objective:str = 'min_abs_slack_val' ) -> dict:
+        
+        relax_iss_model = mip.Model()
+        lowest_priority =  min(list(iis_priority_mapping.values()))
+        to_relax_crts = [crt for crt in iis if iis_priority_mapping[crt.name] == lowest_priority]
+
+        # create a model that only contains the iis
+        slack_vars = {}
+        for crt in iis:
+            for var in crt._Constr__model.vars:
+                relax_iss_model.add_var(name=var.name, 
+                                        lb = var.lb,
+                                        ub = var.ub, 
+                                        var_type=var.var_type,
+                                        obj = var.obj
+                                        )
+            if crt in to_relax_crts:
+                slack_vars[crt.name] = relax_iss_model.add_var( name = '{0}__{1}'.format(crt.name, 'slack'), lb = -mip.INF, ub = mip.INF, var_type=mip.CONTINUOUS)
+                relax_expr =  crt.expr + slack_vars[crt.name]
+                relax_iss_model.add_constr(relax_expr, name='{}_relaxed'.format(crt.name))
+            else:
+                relax_iss_model.add_constr(crt.expr, name='{}_original'.format(crt.name))
+
+        # find the min abs value of the slack variables 
+        abs_slk = None # http://lpsolve.sourceforge.net/5.1/absolute.htm      
         raise NotImplementedError
-
-
 
 
 def build_infeasible_cont_model(num_constraints:int = 10, 
