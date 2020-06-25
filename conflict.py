@@ -5,6 +5,7 @@ from enum import Enum
 from functools import total_ordering
 from typing import Any, Dict, List, Optional, Tuple, Union
 import random
+from collections import Counter
 
 import mip
 import numpy as np
@@ -202,22 +203,37 @@ class ConflictResolver():
     def __init__(self):
         pass
     
-    @classmethod
-    def hierarchy_relaxer(cls, 
+    def hierarchy_relaxer(self, 
                           model:mip.Model, 
                           relaxer_objective:str = 'min_abs_slack_val', 
                           default_priority:ConstraintPriority = ConstraintPriority.MANDATORY ) -> mip.Model:
-    
+        """[summary]
+
+        Args:
+            model (mip.Model): [description]
+            relaxer_objective (str, optional): [description]. Defaults to 'min_abs_slack_val'.
+            default_priority (ConstraintPriority, optional): [description]. Defaults to ConstraintPriority.MANDATORY.
+
+        Raises:
+            Exception: [description]
+
+        Returns:
+            mip.Model: [description]
+        """        
+
         # check if infeasible 
         assert model.status == mip.OptimizationStatus.INFEASIBLE, 'model is not infeasible'
-        
+
+        relaxed_model = model.copy()  
+        relaxed_model._status = model._status #TODO solve this in a different way
         # 0 map priorities 
-        crt_priority_dict = cls.map_constraint_priorities(model, default_priority = default_priority)
+        crt_priority_dict = self.map_constraint_priorities(model, default_priority = default_priority)
 
         cf = ConflictFinder()
+        self.relax_slack_counter = Counter({})
         while True:
             # 1. find iis 
-            iis = cf.find_iis(model, "additive-algorithm")
+            iis = cf.find_iis(relaxed_model, 'deletion-filter')
             
             iis_priority_mapping = { crt.name :crt_priority_dict[crt.name] for crt in iis}
             # check if "relaxable" model mapping 
@@ -225,12 +241,22 @@ class ConflictResolver():
                 raise Exception('Infeasible model, is not possible to relax MANDATORY constraints')
             
             # 2. relax iss 
-            slack_dict = cls.relax_iss(iis, iis_priority_mapping, relaxer_objective = relaxer_objective)
+            slack_dict = self.relax_iss(iis, iis_priority_mapping, relaxer_objective = relaxer_objective)
 
-            print(slack_dict)
+            self.relax_slack_counter += Counter(slack_dict) # update final relaxation 
+            # 3. add the slack variables to the original problem 
+            relaxed_model = self.relax_constraints(relaxed_model, slack_dict)
 
-            # add the slack variables to the original problem 
-            # goto 1 
+            # 4. check if feasible 
+            relaxed_model.emphasis = 1 # feasibility
+            relaxed_model.optimize()
+            if relaxed_model.status in [mip.OptimizationStatus.FEASIBLE, mip.OptimizationStatus.OPTIMAL]:
+                logger.debug('finished relaxation process !')
+                break 
+            else:
+                logger.debug('relaxed the current IIS, still infeasible, searching for a new IIS to relax')
+                logger.debug('relaxed constraints {0}'.format(list(slack_dict.keys())))
+                
     
     @classmethod
     def map_constraint_priorities(cls, model:mip.Model, mapper:dict = PRIORITY_MAPPER, default_priority:ConstraintPriority = ConstraintPriority.MANDATORY ) -> dict:
@@ -255,7 +281,12 @@ class ConflictResolver():
         return crt_importance_dict
 
     @classmethod 
-    def relax_iss(cls, iis:mip.ConstrList, iis_priority_mapping:dict, relaxer_objective:str = 'min_abs_slack_val', big_m = 10e8) -> dict:
+    def relax_iss(cls, 
+                  iis:mip.ConstrList, 
+                  iis_priority_mapping:dict, 
+                  relaxer_objective:str = 'min_abs_slack_val', 
+                  big_m = 10e8) -> dict:
+
         """[summary]
 
         Args:
@@ -324,13 +355,24 @@ class ConflictResolver():
         relax_iss_model.sense = mip.MINIMIZE
         relax_iss_model.optimize()
         if relax_iss_model.status == mip.OptimizationStatus.INFEASIBLE:
-            raise ValueError('relaxation model infeasible')
+            raise ValueError('relaxation model infeasible, usually is a problem with the big_m parameter')
             
         slack_dict = {}
         for crt in to_relax_crts:
             slack_dict[crt.name] = slack_vars[crt.name].x
 
         return slack_dict
+    
+    @classmethod
+    def relax_constraints(cls, relaxed_model:mip.Model, slack_dict:dict) ->mip.Model:
+        for crt_name in slack_dict.keys():
+            crt_original = relaxed_model.constr_by_name(crt_name)
+
+            relax_expr =  crt_original.expr + slack_dict[crt_name]
+            relaxed_model.add_constr(relax_expr, name=crt_original.name)
+            relaxed_model.remove(crt_original) # remove constraint 
+
+        return relaxed_model
 
 
 def build_infeasible_cont_model(num_constraints:int = 10, 
@@ -341,12 +383,12 @@ def build_infeasible_cont_model(num_constraints:int = 10,
     
     
     for idx,rand_constraint in enumerate(np.linspace(1,1000,num_constraints)):
-        crt = mdl.add_constr(var>=rand_constraint, name='lower_bound_{0}_l{1}'.format(idx,random.randint(2,7) ))
+        crt = mdl.add_constr(var>=rand_constraint, name='lower_bound_{0}_l{1}'.format(idx,random.randint(1,6) ))
         logger.debug('added {} to the model'.format(crt))
     
     num_constraint_inf = int(num_infeasible_sets/num_constraints)
     for idx,rand_constraint in enumerate(np.linspace(-1000,-1,num_constraint_inf)):
-        crt = mdl.add_constr(var<=rand_constraint, name='upper_bound_{0}_l{1}'.format(idx, random.randint(2,7)))
+        crt = mdl.add_constr(var<=rand_constraint, name='upper_bound_{0}_l{1}'.format(idx, random.randint(1,7)))
         logger.debug('added {} to the model'.format(crt))
         
     mdl.emphasis = 1 # feasibility
