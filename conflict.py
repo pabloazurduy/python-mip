@@ -15,14 +15,23 @@ import numpy as np
 logger = logging.getLogger('conflict')
 
 class ConflictFinder:
-
+    """ This class groups some IIS (Irreducible Infeasible Set) search algorithms 
+    """    
     def __init__(self):
         pass
 
     def find_iis(self,
                  model: "mip.Model", 
                  method: str = "deletion-filter",) -> mip.ConstrList:
-                
+        """ main method to find an IIS, this method is just a grouping of the other implementations 
+
+        Args:
+            model (mip.Model): Infeasible model to search
+            method (str, optional): [description]. Defaults to "deletion-filter".
+
+        Returns:
+            mip.ConstrList: [description]
+        """               
         # check if infeasible 
         assert model.status == mip.OptimizationStatus.INFEASIBLE, 'model is not infeasible'
         # assert ,is not because time limit 

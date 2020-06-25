@@ -5,7 +5,7 @@ The main idea is to provide the python-mip library with a conflict dealing modul
 ### TODO
 #### IIS algorithms 
 - [x] Implement Deletion Filter Algorithm (LP)
-- [x] Implement Additive Algorithm (LP)
+- [x] Implement Additive Algorithm (LP) #bug
 
  <img src="img/MILP_infeasibility.png" alt="alt text" width="200"/>
 
