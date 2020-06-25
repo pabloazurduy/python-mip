@@ -180,7 +180,7 @@ class ConstraintPriority(Enum):
     HIGH_PRIORITY = 5
     VERY_HIGH_PRIORITY = 6
     MANDATORY = 7
-    
+
     def __lt__(self, other):
         if self.__class__ is other.__class__:
             return self.value < other.value
@@ -227,6 +227,7 @@ class ConflictResolver():
             # 2. relax iss 
             slack_dict = cls.relax_iss(iis, iis_priority_mapping, relaxer_objective = relaxer_objective)
 
+            print(slack_dict)
 
             # add the slack variables to the original problem 
             # goto 1 
@@ -254,14 +255,26 @@ class ConflictResolver():
         return crt_importance_dict
 
     @classmethod 
-    def relax_iss(cls, iis:mip.ConstrList, iis_priority_mapping:dict, relaxer_objective:str = 'min_abs_slack_val' ) -> dict:
-        
+    def relax_iss(cls, iis:mip.ConstrList, iis_priority_mapping:dict, relaxer_objective:str = 'min_abs_slack_val', big_m = 10e8) -> dict:
+        """[summary]
+
+        Args:
+            iis (mip.ConstrList): [description]
+            iis_priority_mapping (dict): [description]
+            relaxer_objective (str, optional): [description]. Defaults to 'min_abs_slack_val'.
+            big_m ([type], optional): [description]. Defaults to 10e10.
+
+        Returns:
+            dict: [description]
+        """        
         relax_iss_model = mip.Model()
         lowest_priority =  min(list(iis_priority_mapping.values()))
         to_relax_crts = [crt for crt in iis if iis_priority_mapping[crt.name] == lowest_priority]
 
         # create a model that only contains the iis
         slack_vars = {}
+        abs_slack_vars = {}
+        abs_slack_cod_vars = {}
         for crt in iis:
             for var in crt._Constr__model.vars:
                 relax_iss_model.add_var(name=var.name, 
@@ -271,22 +284,60 @@ class ConflictResolver():
                                         obj = var.obj
                                         )
             if crt in to_relax_crts:
-                slack_vars[crt.name] = relax_iss_model.add_var( name = '{0}__{1}'.format(crt.name, 'slack'), lb = -mip.INF, ub = mip.INF, var_type=mip.CONTINUOUS)
+                # if this is a -toberelax- constraint 
+                slack_vars[crt.name] = relax_iss_model.add_var( name = '{0}__{1}'.format(crt.name, 'slack'), 
+                                                                lb = -mip.INF, 
+                                                                ub = mip.INF, 
+                                                                var_type=mip.CONTINUOUS)
+            
+                abs_slack_vars[crt.name] = relax_iss_model.add_var( name = '{0}_abs'.format(slack_vars[crt.name].name), 
+                                                                    lb = 0, 
+                                                                    ub = mip.INF, 
+                                                                    var_type=mip.CONTINUOUS)
+
+                abs_slack_cod_vars[crt.name] = relax_iss_model.add_var( name = '{0}_abs_cod'.format(slack_vars[crt.name].name), 
+                                                                        var_type=mip.BINARY)
+                                                            
+                # add relaxed constraint to model 
                 relax_expr =  crt.expr + slack_vars[crt.name]
                 relax_iss_model.add_constr(relax_expr, name='{}_relaxed'.format(crt.name))
-            else:
-                relax_iss_model.add_constr(crt.expr, name='{}_original'.format(crt.name))
 
+                # add abs(slack) variable encoding constraints
+                relax_iss_model.add_constr(abs_slack_vars[crt.name] >= slack_vars[crt.name] , name='{}_positive_min_bound'.format(slack_vars[crt.name].name))
+                relax_iss_model.add_constr(abs_slack_vars[crt.name] >= -slack_vars[crt.name] , name='{}_negative_min_bound'.format(slack_vars[crt.name].name))
+                
+                relax_iss_model.add_constr(abs_slack_vars[crt.name] <= slack_vars[crt.name] + big_m* abs_slack_cod_vars[crt.name] , 
+                                            name='{}_positive_max_bound'.format(slack_vars[crt.name].name))
+                
+                relax_iss_model.add_constr(abs_slack_vars[crt.name] <= -slack_vars[crt.name] + big_m* (1-abs_slack_cod_vars[crt.name])
+                                           ,name='{}_negative_max_bound'.format(slack_vars[crt.name].name))                
+
+
+            else:
+                # if not to be relaxed we added directly to the model
+                relax_iss_model.add_constr(crt.expr, name='{}_original'.format(crt.name))
+                
+
+        
         # find the min abs value of the slack variables 
-        abs_slk = None # http://lpsolve.sourceforge.net/5.1/absolute.htm      
-        raise NotImplementedError
+        relax_iss_model.objective = mip.xsum(list(abs_slack_vars.values()))
+        relax_iss_model.sense = mip.MINIMIZE
+        relax_iss_model.optimize()
+        if relax_iss_model.status == mip.OptimizationStatus.INFEASIBLE:
+            raise ValueError('relaxation model infeasible')
+            
+        slack_dict = {}
+        for crt in to_relax_crts:
+            slack_dict[crt.name] = slack_vars[crt.name].x
+
+        return slack_dict
 
 
 def build_infeasible_cont_model(num_constraints:int = 10, 
                                 num_infeasible_sets:int = 20) -> mip.Model:
     # build an infeasible model, based on many redundant constraints 
     mdl = mip.Model(name='infeasible_model_continuous')
-    var = mdl.add_var(name='var', var_type=mip.CONTINUOUS, lb=-1000, ub=1000)
+    var = mdl.add_var(name='x', var_type=mip.CONTINUOUS, lb=-1000, ub=1000)
     
     
     for idx,rand_constraint in enumerate(np.linspace(1,1000,num_constraints)):
