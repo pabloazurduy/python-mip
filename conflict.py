@@ -2,10 +2,11 @@ import logging
 import sys
 from copy import copy, deepcopy
 from enum import Enum
-from functools import total_ordering
+from functools import total_ordering, reduce
 from typing import Any, Dict, List, Optional, Tuple, Union
 import random
 from collections import Counter
+from operator import add
 
 import mip
 import numpy as np
@@ -201,8 +202,15 @@ class ConflictResolver():
     }
 
     def __init__(self):
-        pass
+        self.iis_num_iterations = 0
+        self.iis_iterations = []
+        self.relax_slack_iterations = []
     
+    
+    @property
+    def slack_by_crt(self) -> dict:
+        return dict(reduce(add, (Counter(dict(x)) for x in self.relax_slack_iterations)))
+
     def hierarchy_relaxer(self, 
                           model:mip.Model, 
                           relaxer_objective:str = 'min_abs_slack_val', 
@@ -230,11 +238,12 @@ class ConflictResolver():
         crt_priority_dict = self.map_constraint_priorities(model, default_priority = default_priority)
 
         cf = ConflictFinder()
-        self.relax_slack_counter = Counter({})
         while True:
             # 1. find iis 
             iis = cf.find_iis(relaxed_model, 'deletion-filter')
-            
+            self.iis_iterations.append([crt.name for crt in iis]) # track iteration 
+            self.iis_num_iterations+=1 # track iteration 
+
             iis_priority_mapping = { crt.name :crt_priority_dict[crt.name] for crt in iis}
             # check if "relaxable" model mapping 
             if set(iis_priority_mapping.values()) == set([ConstraintPriority.MANDATORY]):
@@ -243,7 +252,7 @@ class ConflictResolver():
             # 2. relax iss 
             slack_dict = self.relax_iss(iis, iis_priority_mapping, relaxer_objective = relaxer_objective)
 
-            self.relax_slack_counter += Counter(slack_dict) # update final relaxation 
+            self.relax_slack_iterations.append(slack_dict)
             # 3. add the slack variables to the original problem 
             relaxed_model = self.relax_constraints(relaxed_model, slack_dict)
 
@@ -416,3 +425,4 @@ if __name__ == "__main__":
 
     cr = ConflictResolver()
     cr.hierarchy_relaxer(model)
+    print(cr.slack_by_crt)
