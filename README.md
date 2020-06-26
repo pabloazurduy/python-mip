@@ -26,7 +26,7 @@ An IIS stands for Irreducible Infeasible Set of constraints. on a infeasible mod
 * `c3: y>=3`
 * `c4: y<=1`
 
-we can see that there are 2 IIS on the upper set `IIS_1 = [c1,c2] , IIS_2 = [c3,c4]`. This case is evident to see, that we only have two sets, but lets add a fifth constraint
+we can see that there are 2 IIS on the upper set  `IIS_1 = [c1,c2], IIS_2 = [c3,c4]`. This case is evident to see, that we only have two sets, but lets add a fifth constraint
 
 * `c5: y>=4`
 
@@ -37,6 +37,16 @@ currently there are two methods implemented, `'deletion-filter'` and `'additive_
 
 ### The `ConflictResolver` class (The hierarchy relaxation algorithm)
 
+#### tldr 
+```
+    # all the constraints have a `_l{i}` in the crt.name where i is the level of importance i in [1, ... , 7] 
+    # where 1 is the lowest level, and 7 is the mandatory level, that means that is never to be relaxed
+
+    # resolve a conflict
+    cr = ConflictResolver()
+    relaxed_model = cr.hierarchy_relaxer(infeasible_model, relaxer_objective = 'min_abs_slack_val' )
+```
+####  long explanation
 
 
 ### TODO

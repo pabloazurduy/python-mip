@@ -50,5 +50,5 @@ if __name__ == "__main__":
 
     # resolve a conflict
     cr = ConflictResolver()
-    cr.hierarchy_relaxer(model)
+    relaxed_model = cr.hierarchy_relaxer(model, relaxer_objective = 'min_abs_slack_val')
     print(cr.slack_by_crt)

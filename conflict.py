@@ -301,7 +301,8 @@ class ConflictResolver():
                 logger.debug('relaxed the current IIS, still infeasible, searching for a new IIS to relax')
                 logger.debug('relaxed constraints {0}'.format(list(slack_dict.keys())))
                 
-    
+        return relaxed_model
+        
     @classmethod
     def map_constraint_priorities(cls, 
                                   model:mip.Model, 
