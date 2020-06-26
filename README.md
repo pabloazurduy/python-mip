@@ -2,6 +2,21 @@
 An implementation of a `conflictFinder` module based on the publication of Olivier et al. [1]
 The main idea is to provide the python-mip library with a conflict dealing module
 
+## Instalation 
+
+`pip install mip>=1.9.0`
+Currently this is a separated module from the library, so you just need to import the `conflict.py`to your code
+
+## Usage
+This module implements two classes `ConflictFinder` and the `ConflictResolver` class. the first one is an implementation of a few IIS finder algorithms and the second one is the implementation of a relaxation algorithm. 
+
+### The `ConflictFinder` class (The IIS)
+
+
+### The `ConflictResolver` class (The hierarchy relaxation algorithm)
+
+
+
 ### TODO
 #### IIS algorithms 
 - [x] Implement Deletion Filter Algorithm (LP)
