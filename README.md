@@ -10,7 +10,7 @@ Currently this is a separated module from the library, so you just need to impor
 ## Usage
 This module implements two classes `ConflictFinder` and the `ConflictResolver` class. the first one is an implementation of a few IIS finder algorithms and the second one is the implementation of a relaxation algorithm. 
 
-### The `ConflictFinder` class (The IIS)
+### The `ConflictFinder` (The IIS finder)
 
 #### tldr 
 
@@ -35,7 +35,7 @@ now we have a third IIS  `IIS_3 = [c4,c5]`, we can realized that the problem of 
 currently there are two methods implemented, `'deletion-filter'` and `'additive_algorithm'` **this two methods only work for linear infeasibilities**. mip infeasibilities (when the feasible region does not contain integer solutions) **are not supported yet**.
 
 
-### The `ConflictResolver` class (The hierarchy relaxation algorithm)
+### The `ConflictResolver` (the hierarchy relaxation algorithm)
 
 #### tldr 
 ```
