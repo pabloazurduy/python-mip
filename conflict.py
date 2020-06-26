@@ -26,11 +26,11 @@ class ConflictFinder:
         """ main method to find an IIS, this method is just a grouping of the other implementations 
 
         Args:
-            model (mip.Model): Infeasible model to search
-            method (str, optional): [description]. Defaults to "deletion-filter".
+            model (mip.Model): Infeasible model where to find the IIS
+            method (str, optional): name of the method to use ["deletion-filter", "additive_algorithm"]. Defaults to 'deletion-filter". 
 
         Returns:
-            mip.ConstrList: [description]
+            mip.ConstrList: IIS constraint list 
         """               
         # check if infeasible 
         assert model.status == mip.OptimizationStatus.INFEASIBLE, 'model is not infeasible'
@@ -42,7 +42,14 @@ class ConflictFinder:
             
     def deletion_filter(self, 
                         model:"mip.Model")-> mip.ConstrList:
-        
+        """ deletion filter algorithm for search an IIS
+
+        Args:
+            model (mip.Model): Infeasible model 
+
+        Returns:
+            mip.ConstrList: IIS
+        """        
         # 1. create a model with all constraints but one 
         aux_model = model.copy()
         aux_model.objective = 1
@@ -73,7 +80,14 @@ class ConflictFinder:
 
     def additive_algorithm(self,
                            model:"mip.Model")-> mip.ConstrList:
-        
+        """Additive algorithm to find an IIS
+
+        Args:
+            model (mip.Model): Infeasible model 
+
+        Returns:
+            mip.ConstrList: IIS
+        """        
         # Create some aux models to test feasibility of the set of constraints  
         aux_model_testing =  mip.Model()
         for var in model.vars:
@@ -115,7 +129,17 @@ class ConflictFinder:
             
     def deletion_filter_milp_ir_lc_bd(self,
                                       model:"mip.Model")-> mip.ConstrList:    
-        
+        """[summary]
+
+        Args:
+            model (mip.Model): [description]
+
+        Raises:
+            NotImplementedError: [description]
+
+        Returns:
+            mip.ConstrList: [description]
+        """        
         raise NotImplementedError('WIP')
         # major constraint sets definition  
         t_aux_model = mip.Model(name='t_auxiliary_model')
@@ -207,10 +231,11 @@ class ConflictResolver():
         '_l4':ConstraintPriority.MID_PRIORITY,
         '_l5':ConstraintPriority.HIGH_PRIORITY,
         '_l6':ConstraintPriority.VERY_HIGH_PRIORITY,
-        '_l7':ConstraintPriority.MANDATORY
+        '_l7':ConstraintPriority.MANDATORY # This level is never going to be relaxed
     }
 
     def __init__(self):
+
         self.iis_num_iterations = 0
         self.iis_iterations = []
         self.relax_slack_iterations = []
@@ -224,18 +249,20 @@ class ConflictResolver():
                           model:mip.Model, 
                           relaxer_objective:str = 'min_abs_slack_val', 
                           default_priority:ConstraintPriority = ConstraintPriority.MANDATORY ) -> mip.Model:
-        """[summary]
+        """ hierarchy relaxer algorithm, it's gonna find a IIS and then relax it using the objective function defined (`relaxer_objective`) and then update the model 
+        with the relaxed constraints. This process runs until there's not more IIS on the model. 
 
         Args:
-            model (mip.Model): [description]
-            relaxer_objective (str, optional): [description]. Defaults to 'min_abs_slack_val'.
-            default_priority (ConstraintPriority, optional): [description]. Defaults to ConstraintPriority.MANDATORY.
+            model (mip.Model): Infeasible model
+            relaxer_objective (str, optional): objective function of the relaxer model (IIS relaxer model). Defaults to 'min_abs_slack_val'.
+            default_priority (ConstraintPriority, optional): If a constraint does not have a supported substring priority in the name, it will assign a default priority.
+                                                             Defaults to ConstraintPriority.MANDATORY.
 
         Raises:
             Exception: [description]
 
         Returns:
-            mip.Model: [description]
+            mip.Model: relaxed model
         """        
 
         # check if infeasible 
@@ -277,7 +304,21 @@ class ConflictResolver():
                 
     
     @classmethod
-    def map_constraint_priorities(cls, model:mip.Model, mapper:dict = PRIORITY_MAPPER, default_priority:ConstraintPriority = ConstraintPriority.MANDATORY ) -> dict:
+    def map_constraint_priorities(cls, 
+                                  model:mip.Model, 
+                                  mapper:dict = PRIORITY_MAPPER, 
+                                  default_priority:ConstraintPriority = ConstraintPriority.MANDATORY ) -> dict:
+        """ this method is used to map {constraint_name: ConstraintPriority} for each constraint in the model. This map uses the constraint name 
+            and looks for the `_l?` regex to map it to a corresponding level (those levels are described on the mapper dict)
+
+        Args:
+            model (mip.Model): [description]
+            mapper (dict, optional): [description]. Defaults to PRIORITY_MAPPER.
+            default_priority (ConstraintPriority, optional): [description]. Defaults to ConstraintPriority.MANDATORY.
+
+        Returns:
+            dict: {constraint_name: ConstraintPriority} pars for all the model.constrs 
+        """        
         
         crt_importance_dict = {} # dict with name
         crt_name_list = [crt.name for crt in model.constrs]
@@ -305,16 +346,16 @@ class ConflictResolver():
                   relaxer_objective:str = 'min_abs_slack_val', 
                   big_m = 10e8) -> dict:
 
-        """[summary]
+        """ This function is the sub module that finds the optimum relaxation for an IIS, given a crt priority mapping and a objective function
 
         Args:
-            iis (mip.ConstrList): [description]
-            iis_priority_mapping (dict): [description]
-            relaxer_objective (str, optional): [description]. Defaults to 'min_abs_slack_val'.
-            big_m ([type], optional): [description]. Defaults to 10e10.
+            iis (mip.ConstrList): IIS constraint list 
+            iis_priority_mapping (dict): maps {crt_name: ConstraintPriority}
+            relaxer_objective (str, optional): objective function to use when relaxing. Defaults to 'min_abs_slack_val'.
+            big_m (float, optional): this is just for abs value codification. Defaults to 10e10.
 
         Returns:
-            dict: [description]
+            dict: a slack variable dictionary with the value of the {constraint_name:slack.value} pair to be added to each constraint in order to make the IIS feasible
         """        
         relax_iss_model = mip.Model()
         lowest_priority =  min(list(iis_priority_mapping.values()))
@@ -383,6 +424,16 @@ class ConflictResolver():
     
     @classmethod
     def relax_constraints(cls, relaxed_model:mip.Model, slack_dict:dict) ->mip.Model:
+        """ this method creates a modification of the model `relaxed_model` where all the constraints in the slack_dict are 
+        modified in order to add the slack values to make the IIS disappear
+
+        Args:
+            relaxed_model (mip.Model): model to relax
+            slack_dict (dict): pairs {constraint_name: slack_var.value}
+
+        Returns:
+            mip.Model: a modification of the original model where all the constraints are modified with the slack values
+        """        
         for crt_name in slack_dict.keys():
             crt_original = relaxed_model.constr_by_name(crt_name)
 
@@ -429,8 +480,8 @@ if __name__ == "__main__":
     logger.debug(model.status)
 
     cf = ConflictFinder()
-    iis = cf.find_iis(model, "additive-algorithm")
-    logger.debug([crt.name for crt in iis])
+    iis = cf.find_iis(model, 'deletion-filter')
+    logger.debug([crt.__str__() for crt in iis])
 
     cr = ConflictResolver()
     cr.hierarchy_relaxer(model)
