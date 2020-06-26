@@ -12,6 +12,28 @@ This module implements two classes `ConflictFinder` and the `ConflictResolver` c
 
 ### The `ConflictFinder` class (The IIS)
 
+#### tldr 
+
+```
+cf = ConflictFinder()
+iis = cf.find_iis(model = my_infeasible_model, method='deletion-filter') # set of infeasible constraints
+```
+####  long explanation
+An IIS stands for Irreducible Infeasible Set of constraints. on a infeasible model you can have one or many infeasible sets, and some of them can be linked between them. Let's for example define a infeasible linear model with 4 constraints:
+
+* `c1: x>=3`
+* `c2: x<=1`
+* `c3: y>=3`
+* `c4: y<=1`
+
+we can see that there are 2 IIS on the upper set `IIS_1 = [c1,c2] , IIS_2 = [c3,c4]`. This case is evident to see, that we only have two sets, but lets add a fifth constraint
+
+* `c5: y>=4`
+
+now we have a third IIS  `IIS_3 = [c4,c5]`, we can realized that the problem of finding all the infeasibilities needs to search all the combinations. And that is a hard problem, usually you just need to apply some relaxation algorithm once you are debugging so this class will only provide you a way to find one IIS. 
+
+currently there are two methods implemented, `'deletion-filter'` and `'additive_algorithm'` **this two methods only work for linear infeasibilities**. mip infeasibilities (when the feasible region does not contain integer solutions) **are not supported yet**.
+
 
 ### The `ConflictResolver` class (The hierarchy relaxation algorithm)
 
