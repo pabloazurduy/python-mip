@@ -414,7 +414,7 @@ class ConflictResolver():
         relax_iss_model.sense = mip.MINIMIZE
         relax_iss_model.optimize()
         if relax_iss_model.status == mip.OptimizationStatus.INFEASIBLE:
-            raise ValueError('relaxation model infeasible, usually is a problem with the big_m parameter')
+            raise ValueError('sub relaxation model infeasible, this could mean that in the IIS the mandatory constraints are infeasible sometimes. Also could mean that the big_m parameter is overflowed ')
             
         slack_dict = {}
         for crt in to_relax_crts:
