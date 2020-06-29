@@ -1,5 +1,5 @@
 # Conflict Resolution Module
-An implementation of a `ConflictFinder` module based on the publication of Olivier et al. [1]. Also implement a `ConflictResolver` module that search and relax infeasibilities based on a constraint hierarchy defined by the user 
+An implementation of a `ConflictFinder` module based on the publication of (OLIVIER GUIEU AND JOHN W. CHINNECK 1998) [1]. Also implement a `ConflictResolver` module that search and relax infeasibilities based on a constraint hierarchy defined by the user 
 
 ## Installation 
 
@@ -81,8 +81,5 @@ currently only the `min_abs_slack_val` is supported on the sub problem. But in t
 
 
 #### References 
-[1]:http://www.sce.carleton.ca/faculty/chinneck/docs/GuieuChinneck.pdf [OLIVIER GUIEU AND JOHN W. CHINNECK 1998]
-
-
-
-[2]: https://github.com/pabloazurduy/python-mip-infeasibility/issues/2
+[1]:http://www.sce.carleton.ca/faculty/chinneck/docs/GuieuChinneck.pdf 
+[2]:https://github.com/pabloazurduy/python-mip-infeasibility/issues/2
