@@ -66,7 +66,7 @@ currently only the `min_abs_slack_val` is supported on the sub problem. But in t
 ## TODO
 #### IIS algorithms 
 - [x] Implement Deletion Filter Algorithm (LP)
-- [x] Implement Additive Algorithm (LP) [bug #2]
+- [x] Implement Additive Algorithm (LP) ([#2][i2])
 
  <img src="img/MILP_infeasibility.png" alt="alt text" width="200"/>
 
@@ -74,9 +74,15 @@ currently only the `min_abs_slack_val` is supported on the sub problem. But in t
 - [ ] Implement Deletion Filter Algorithm (LC-IR-BD) (MIPLP)
 
 #### Relaxation module 
-- [x] Implement a linear punishment relaxation algorithm (based on a hierarchy structure)
+- [x] Implement a linear punishment relaxation algorithm abs value(based on a hierarchy structure)
+- [ ] Implement relaxation based on the minimization of the square of slack var value
+- [ ] Implement relaxation based on the minimization of the number of constraints relaxed 
+- [ ] Implement relaxation based on minimization of the number of constraints relaxed 
 
 
 #### References 
-[1] [OLIVIER GUIEU AND JOHN W. CHINNECK 1998](http://www.sce.carleton.ca/faculty/chinneck/docs/GuieuChinneck.pdf)
- 
+[1]:http://www.sce.carleton.ca/faculty/chinneck/docs/GuieuChinneck.pdf [OLIVIER GUIEU AND JOHN W. CHINNECK 1998]
+
+
+
+[2]: https://github.com/pabloazurduy/python-mip-infeasibility/issues/2
