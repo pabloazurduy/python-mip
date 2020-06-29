@@ -66,7 +66,7 @@ currently only the `min_abs_slack_val` is supported on the sub problem. But in t
 ## TODO
 #### IIS algorithms 
 - [x] Implement Deletion Filter Algorithm (LP)
-- [x] Implement Additive Algorithm (LP) [#2](https://github.com/pabloazurduy/python-mip-infeasibility/issues/2)
+- [x] Implement Additive Algorithm (LP) [!open issue #2](https://github.com/pabloazurduy/python-mip-infeasibility/issues/2)
 
  <img src="img/MILP_infeasibility.png" alt="alt text" width="200"/>
 
