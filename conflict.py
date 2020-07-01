@@ -1,6 +1,5 @@
 import logging
 import sys
-from collections import Counter
 from copy import copy, deepcopy
 from enum import Enum
 from functools import reduce, total_ordering
@@ -242,7 +241,15 @@ class ConflictResolver():
     
     @property
     def slack_by_crt(self) -> dict:
-        return dict(reduce(add, (Counter(dict(x)) for x in self.relax_slack_iterations)))
+        answ = {}
+        for slack_dict_iter in self.relax_slack_iterations:
+            for crt_name in slack_dict_iter.keys():
+                if crt_name in answ.keys():
+                    answ[crt_name] += slack_dict_iter[crt_name]
+                else: 
+                    answ[crt_name] = slack_dict_iter[crt_name]
+        return answ
+
 
     def hierarchy_relaxer(self, 
                           model:mip.Model, 
