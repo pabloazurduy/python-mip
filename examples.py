@@ -44,11 +44,11 @@ if __name__ == "__main__":
     logger.debug(model.status)
 
     # find one IIS
-    cf = ConflictFinder()
-    iis = cf.find_iis(model, 'deletion-filter')
+    cf = ConflictFinder(model)
+    iis = cf.find_iis('deletion-filter')
     logger.debug([crt.__str__() for crt in iis])
 
     # resolve a conflict
-    cr = ConflictResolver()
-    relaxed_model = cr.hierarchy_relaxer(model, relaxer_objective = 'min_abs_slack_val')
+    cr = ConflictResolver(model)
+    relaxed_model = cr.hierarchy_relaxer(relaxer_objective = 'min_abs_slack_val')
     print(cr.slack_by_crt)
