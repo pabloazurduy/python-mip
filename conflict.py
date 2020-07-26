@@ -16,7 +16,12 @@ class ConflictFinder:
     """ This class groups some IIS (Irreducible Infeasible Set) search algorithms 
     """    
     def __init__(self, model:mip.Model):
-        assert model.status == mip.OptimizationStatus.INFEASIBLE, 'model is not infeasible'
+        if model.status == mip.OptimizationStatus.LOADED:
+            logger.debug('model not runned yet, checking if feasible or not')
+            model.emphasis = 1 # feasibility
+            model.preprocess = 1 # -1  automatic, 0  off, 1  on.
+            model.optimize()
+        assert model.status == mip.OptimizationStatus.INFEASIBLE, 'model is not linear infeasible'
         self.model = model 
 
 
@@ -31,8 +36,6 @@ class ConflictFinder:
         Returns:
             mip.ConstrList: IIS constraint list 
         """               
-        # check if infeasible 
-        assert self.model.status == mip.OptimizationStatus.INFEASIBLE, 'model is not infeasible'
         # assert ,is not because time limit 
         if method == "deletion-filter":
             return self.deletion_filter()
@@ -210,7 +213,7 @@ class ConstraintPriority(Enum):
             return self.value < other.value
         return NotImplemented
 
-class ConflictResolver():
+class ConflictRelaxer():
     
     # mapper for constraint naming (while the attribute 'crt_importance' not in the mip.Constraint class)
     PRIORITY_MAPPER = {
@@ -224,8 +227,12 @@ class ConflictResolver():
     }
 
     def __init__(self, model:mip.Model):
-        # check if infeasible 
-        assert model.status == mip.OptimizationStatus.INFEASIBLE, 'model is not infeasible'
+        if model.status == mip.OptimizationStatus.LOADED:
+            logger.debug('model not runned yet, checking if feasible or not')
+            model.emphasis = 1 # feasibility
+            model.preprocess = 1 # -1  automatic, 0  off, 1  on.
+            model.optimize()
+        assert model.status == mip.OptimizationStatus.INFEASIBLE, 'model is not linear infeasible'
 
         self.model = model
         self.iis_num_iterations = 0
@@ -282,8 +289,8 @@ class ConflictResolver():
             if set(iis_priority_mapping.values()) == set([ConstraintPriority.MANDATORY]):
                 raise Exception('Infeasible model, is not possible to relax MANDATORY constraints')
             
-            # 2. relax iss 
-            slack_dict = self.relax_iss(iis, iis_priority_mapping, relaxer_objective = relaxer_objective)
+            # 2. relax iis 
+            slack_dict = self.relax_iis(iis, iis_priority_mapping, relaxer_objective = relaxer_objective)
 
             self.relax_slack_iterations.append(slack_dict)
             # 3. add the slack variables to the original problem 
@@ -338,7 +345,7 @@ class ConflictResolver():
         return crt_importance_dict
 
     @classmethod 
-    def relax_iss(cls, 
+    def relax_iis(cls, 
                   iis:mip.ConstrList, 
                   iis_priority_mapping:dict, 
                   relaxer_objective:str = 'min_abs_slack_val', 
@@ -355,7 +362,7 @@ class ConflictResolver():
         Returns:
             dict: a slack variable dictionary with the value of the {constraint_name:slack.value} pair to be added to each constraint in order to make the IIS feasible
         """        
-        relax_iss_model = mip.Model()
+        relax_iis_model = mip.Model()
         lowest_priority =  min(list(iis_priority_mapping.values()))
         to_relax_crts = [crt for crt in iis if iis_priority_mapping[crt.name] == lowest_priority]
 
@@ -365,7 +372,7 @@ class ConflictResolver():
         abs_slack_cod_vars = {}
         for crt in iis:
             for var in crt._Constr__model.vars:
-                relax_iss_model.add_var(name=var.name, 
+                relax_iis_model.add_var(name=var.name, 
                                         lb = var.lb,
                                         ub = var.ub, 
                                         var_type=var.var_type,
@@ -373,45 +380,45 @@ class ConflictResolver():
                                         )
             if crt in to_relax_crts:
                 # if this is a -toberelax- constraint 
-                slack_vars[crt.name] = relax_iss_model.add_var( name = '{0}__{1}'.format(crt.name, 'slack'), 
+                slack_vars[crt.name] = relax_iis_model.add_var( name = '{0}__{1}'.format(crt.name, 'slack'), 
                                                                 lb = -mip.INF, 
                                                                 ub = mip.INF, 
                                                                 var_type=mip.CONTINUOUS)
             
-                abs_slack_vars[crt.name] = relax_iss_model.add_var( name = '{0}_abs'.format(slack_vars[crt.name].name), 
+                abs_slack_vars[crt.name] = relax_iis_model.add_var( name = '{0}_abs'.format(slack_vars[crt.name].name), 
                                                                     lb = 0, 
                                                                     ub = mip.INF, 
                                                                     var_type=mip.CONTINUOUS)
 
-                abs_slack_cod_vars[crt.name] = relax_iss_model.add_var( name = '{0}_abs_cod'.format(slack_vars[crt.name].name), 
+                abs_slack_cod_vars[crt.name] = relax_iis_model.add_var( name = '{0}_abs_cod'.format(slack_vars[crt.name].name), 
                                                                         var_type=mip.BINARY)
                                                             
                 # add relaxed constraint to model 
                 relax_expr =  crt.expr + slack_vars[crt.name]
-                relax_iss_model.add_constr(relax_expr, name='{}_relaxed'.format(crt.name))
+                relax_iis_model.add_constr(relax_expr, name='{}_relaxed'.format(crt.name))
 
                 # add abs(slack) variable encoding constraints
-                relax_iss_model.add_constr(abs_slack_vars[crt.name] >= slack_vars[crt.name] , name='{}_positive_min_bound'.format(slack_vars[crt.name].name))
-                relax_iss_model.add_constr(abs_slack_vars[crt.name] >= -slack_vars[crt.name] , name='{}_negative_min_bound'.format(slack_vars[crt.name].name))
+                relax_iis_model.add_constr(abs_slack_vars[crt.name] >= slack_vars[crt.name] , name='{}_positive_min_bound'.format(slack_vars[crt.name].name))
+                relax_iis_model.add_constr(abs_slack_vars[crt.name] >= -slack_vars[crt.name] , name='{}_negative_min_bound'.format(slack_vars[crt.name].name))
                 
-                relax_iss_model.add_constr(abs_slack_vars[crt.name] <= slack_vars[crt.name] + big_m* abs_slack_cod_vars[crt.name] , 
+                relax_iis_model.add_constr(abs_slack_vars[crt.name] <= slack_vars[crt.name] + big_m* abs_slack_cod_vars[crt.name] , 
                                             name='{}_positive_max_bound'.format(slack_vars[crt.name].name))
                 
-                relax_iss_model.add_constr(abs_slack_vars[crt.name] <= -slack_vars[crt.name] + big_m* (1-abs_slack_cod_vars[crt.name])
+                relax_iis_model.add_constr(abs_slack_vars[crt.name] <= -slack_vars[crt.name] + big_m* (1-abs_slack_cod_vars[crt.name])
                                            ,name='{}_negative_max_bound'.format(slack_vars[crt.name].name))                
 
 
             else:
                 # if not to be relaxed we added directly to the model
-                relax_iss_model.add_constr(crt.expr, name='{}_original'.format(crt.name))
+                relax_iis_model.add_constr(crt.expr, name='{}_original'.format(crt.name))
                 
 
         
         # find the min abs value of the slack variables 
-        relax_iss_model.objective = mip.xsum(list(abs_slack_vars.values()))
-        relax_iss_model.sense = mip.MINIMIZE
-        relax_iss_model.optimize()
-        if relax_iss_model.status == mip.OptimizationStatus.INFEASIBLE:
+        relax_iis_model.objective = mip.xsum(list(abs_slack_vars.values()))
+        relax_iis_model.sense = mip.MINIMIZE
+        relax_iis_model.optimize()
+        if relax_iis_model.status == mip.OptimizationStatus.INFEASIBLE:
             raise ValueError('sub relaxation model infeasible, this could mean that in the IIS the mandatory constraints are infeasible sometimes. Also could mean that the big_m parameter is overflowed ')
             
         slack_dict = {}

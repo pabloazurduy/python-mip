@@ -1,5 +1,5 @@
 # Conflict Resolution Module
-An implementation of a `ConflictFinder` module based on the publication of (OLIVIER GUIEU AND JOHN W. CHINNECK 1998) [1]. Also implement a `ConflictResolver` module that search and relax infeasibilities based on a constraint hierarchy defined by the user 
+An implementation of a `ConflictFinder` module based on the publication of (OLIVIER GUIEU AND JOHN W. CHINNECK 1998) [1]. Also implement a `ConflictRelaxer` module that search and relax infeasibilities based on a constraint hierarchy defined by the user 
 
 ## Installation 
 
@@ -7,7 +7,7 @@ An implementation of a `ConflictFinder` module based on the publication of (OLIV
 Currently this is a separated module from the library, so you just need to import the `conflict.py`to your directory
 
 ## Usage
-This module implements two classes `ConflictFinder` and the `ConflictResolver` class. the first one is an implementation of a few IIS finder algorithms and the second one is the implementation of a relaxation algorithm. 
+This module implements two classes `ConflictFinder` and the `ConflictRelaxer` class. the first one is an implementation of a few IIS finder algorithms and the second one is the implementation of a relaxation algorithm. 
 
 ### The `ConflictFinder` (The IIS finder)
 
@@ -35,14 +35,14 @@ now we have a third IIS  `IIS_3 = [c4,c5]`, we can realized that the problem of 
 currently there are two methods implemented, `'deletion-filter'` and `'additive_algorithm'` **this two methods only work for linear infeasibilities**. mip infeasibilities (when the feasible region does not contain integer solutions) **are not supported yet**.
 
 
-### The `ConflictResolver` (the hierarchy relaxation algorithm)
+### The `ConflictRelaxer` (the hierarchy relaxation algorithm)
 
 #### tldr 
 All the constraints have a `_l{i}` in the crt.name where i is the level of importance `i` in `[1, ... , 7]`  where 1 is the lowest level, and 7 is the `mandatory_level`, that means that is never to be relaxed. 
 
 ```
 # resolve a conflict
-cr = ConflictResolver()
+cr = ConflictRelaxer()
 relaxed_model = cr.hierarchy_relaxer(infeasible_model, relaxer_objective = 'min_abs_slack_val' )
 
 print(cr.iis_num_iterations)      # number of IIS iterations 

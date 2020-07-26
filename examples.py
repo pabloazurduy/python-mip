@@ -3,7 +3,7 @@ import logging
 import numpy as np 
 import sys 
 import random
-from conflict import ConflictFinder, ConflictResolver
+from conflict import ConflictFinder, ConflictRelaxer
 
 # logger = logging.getLogger(__name__)
 logger = logging.getLogger('conflict')
@@ -49,6 +49,6 @@ if __name__ == "__main__":
     logger.debug([crt.__str__() for crt in iis])
 
     # resolve a conflict
-    cr = ConflictResolver(model)
+    cr = ConflictRelaxer(model)
     relaxed_model = cr.hierarchy_relaxer(relaxer_objective = 'min_abs_slack_val')
     print(cr.slack_by_crt)
