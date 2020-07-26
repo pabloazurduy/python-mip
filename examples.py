@@ -45,7 +45,7 @@ if __name__ == "__main__":
 
     # find one IIS
     cf = ConflictFinder(model)
-    iis = cf.find_iis('deletion-filter')
+    iis = cf.find_iis()
     logger.debug([crt.__str__() for crt in iis])
 
     # resolve a conflict

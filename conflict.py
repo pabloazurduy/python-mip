@@ -12,6 +12,11 @@ import numpy as np
 # logger = logging.getLogger(__name__)
 logger = logging.getLogger('conflict')
 
+
+class IISFinderAlgorithm(Enum):
+    DELETION_FILTER = 1
+    ADDITIVE_ALGORITHM = 2
+
 class ConflictFinder:
     """ This class groups some IIS (Irreducible Infeasible Set) search algorithms 
     """    
@@ -26,7 +31,7 @@ class ConflictFinder:
 
 
     def find_iis(self,
-                 method: str = "deletion-filter",) -> mip.ConstrList:
+                 method: IISFinderAlgorithm = IISFinderAlgorithm.DELETION_FILTER ) -> mip.ConstrList:
         """ main method to find an IIS, this method is just a grouping of the other implementations 
 
         Args:
@@ -37,9 +42,9 @@ class ConflictFinder:
             mip.ConstrList: IIS constraint list 
         """               
         # assert ,is not because time limit 
-        if method == "deletion-filter":
+        if method == IISFinderAlgorithm.DELETION_FILTER:
             return self.deletion_filter()
-        if method == "additive-algorithm":
+        if method == IISFinderAlgorithm.ADDITIVE_ALGORITHM:
             return self.additive_algorithm()        
             
     def deletion_filter(self)-> mip.ConstrList:
@@ -198,6 +203,7 @@ class ConflictFinder:
         # TODO
         raise NotImplementedError
 
+
 class ConstraintPriority(Enum):
     # constraints levels
     VERY_LOW_PRIORITY = 1
@@ -280,7 +286,7 @@ class ConflictRelaxer():
         cf = ConflictFinder(relaxed_model)
         while True:
             # 1. find iis 
-            iis = cf.find_iis('deletion-filter')
+            iis = cf.find_iis(IISFinderAlgorithm.DELETION_FILTER)
             self.iis_iterations.append([crt.name for crt in iis]) # track iteration 
             self.iis_num_iterations+=1 # track iteration 
 
