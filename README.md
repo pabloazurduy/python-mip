@@ -14,8 +14,8 @@ This module implements two classes `ConflictFinder` and the `ConflictRelaxer` cl
 #### tldr 
 
 ```
-cf = ConflictFinder()
-iis = cf.find_iis(model = my_infeasible_model, method='deletion-filter') # set of infeasible constraints
+cf = ConflictFinder(my_infeasible_model)
+iis = cf.find_iis(method=conflict.IISFinderAlgorithm.DELETION_FILTER) # set of infeasible constraints
 ```
 &nbsp;
 ####  long explanation
@@ -32,7 +32,7 @@ we can see that there are 2 IIS on the upper set  `IIS_1 = [c1,c2], IIS_2 = [c3,
 
 now we have a third IIS  `IIS_3 = [c4,c5]`, we can realized that the problem of finding all the infeasibilities needs to search all the combinations. And that is a hard problem, usually you just need to apply some relaxation algorithm once you are debugging so this class will only provide you a way to find one IIS. 
 
-currently there are two methods implemented, `'deletion-filter'` and `'additive_algorithm'` **this two methods only work for linear infeasibilities**. mip infeasibilities (when the feasible region does not contain integer solutions) **are not supported yet**.
+currently there are two methods implemented, `DELETION_FILTER` and `ADDITIVE_ALGORITHM` **this two methods only work for linear infeasibilities**. mip infeasibilities (when the feasible region does not contain integer solutions) **are not supported yet**.
 
 
 ### The `ConflictRelaxer` (the hierarchy relaxation algorithm)
@@ -42,8 +42,8 @@ All the constraints have a `_l{i}` in the crt.name where i is the level of impor
 
 ```
 # resolve a conflict
-cr = ConflictRelaxer()
-relaxed_model = cr.hierarchy_relaxer(infeasible_model, relaxer_objective = 'min_abs_slack_val' )
+cr = ConflictRelaxer(model = infeasible_model)
+relaxed_model = cr.hierarchy_relaxer(relaxer_objective = 'min_abs_slack_val' )
 
 print(cr.iis_num_iterations)      # number of IIS iterations 
 print(cr.iis_iterations)          # list of IIS iterations (constraintLists of each iteration)
