@@ -1,5 +1,5 @@
 # Conflict Resolution Module
-An implementation of a `ConflictFinder` module based on the publication of (OLIVIER GUIEU AND JOHN W. CHINNECK 1998) [1]. Also implement a `ConflictRelaxer` module that search and relax infeasibilities based on a constraint hierarchy defined by the user 
+An implementation of a `ConflictFinder` module based on the publication of [OLIVIER GUIEU AND JOHN W. CHINNECK 1998 (1)](http://www.sce.carleton.ca/faculty/chinneck/docs/GuieuChinneck.pdf). Also implement a `ConflictRelaxer` module that search and relax infeasibilities based on a constraint hierarchy defined by the user 
 
 ## Installation 
 
@@ -81,4 +81,4 @@ currently only the `min_abs_slack_val` is supported on the sub problem. But in t
 
 
 #### References 
-[1]: http://www.sce.carleton.ca/faculty/chinneck/docs/GuieuChinneck.pdf 
+(1) http://www.sce.carleton.ca/faculty/chinneck/docs/GuieuChinneck.pdf 
